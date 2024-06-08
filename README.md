@@ -1,3 +1,3 @@
 ## Pterodactyl Eggs
 
-Random eggs I have developed for the [https://pterodactyl.io/](Pterodactyl)
+Random eggs I have developed for [Pterodactyl](https://pterodactyl.io)
