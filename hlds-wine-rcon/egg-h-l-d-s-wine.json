@@ -1,0 +1,162 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2024-06-08T13:59:57-04:00",
+    "name": "HLDS Wine",
+    "author": "kevin@sbotnas.io",
+    "description": "An egg for running Windows only GoldSrc mods under Wine with an RCON console to support Pterodactyl's Web console",
+    "features": null,
+    "docker_images": {
+        "ghcr.io\/parkervcp\/yolks:wine_staging": "ghcr.io\/parkervcp\/yolks:wine_staging"
+    },
+    "file_denylist": [],
+    "startup": ".\/hlds_wine_rcon_vars.sh && wine hlds.exe -console -game {{HLDS_GAME}} -port {{SERVER_PORT}} -sport {{VAC_PORT}} +map {{SRCDS_MAP}} +maxplayers {{MAX_PLAYERS}} +ip 0.0.0.0 -strictportbind -norestart -addons & GSRC_PID=$!; until echo \"Waiting for RCON connection...\"; (.\/goldsrc-rcon-linux 127.0.0.1 {{SERVER_PORT}} {{RCON_PASSWORD}})<&0 & wait $!; do sleep 5; done",
+    "config": {
+        "files": "{}",
+        "startup": "{\r\n    \"done\": \"Connected successfully\"\r\n}",
+        "logs": "{}",
+        "stop": "^^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!\/bin\/bash\r\n## File: HLDS Wine - egg-h-l-d-s-wine.json\r\n## Description: An egg for running Windows only GoldSrc mods under Wine with an RCON console to support Pterodactyl's Web console\r\n## Author: Kevin Moore <admin@sbotnas.io>\r\n## Created: 2024\/05\/01\r\n## Modified: 2024\/05\/01\r\n## License: MIT License\r\n\r\nif [ \"${STEAM_USER}\" == \"\" ] || [ \"${STEAM_PASS}\" == \"\" ]; then\r\n    echo -e \"Steam user is not set, using anonymous user.\\n\"\r\n    STEAM_USER=anonymous\r\n    STEAM_PASS=\"\"\r\n    STEAM_AUTH=\"\"\r\nelse\r\n    echo -e \"User set to ${STEAM_USER}\"\r\nfi\r\n\r\ncd \/tmp\r\ncurl -sSL -o steamcmd.tar.gz http:\/\/media.steampowered.com\/installer\/steamcmd_linux.tar.gz\r\n\r\n# RCON Utility\r\ncurl -sSL -o \/mnt\/server\/goldsrc-rcon-linux https:\/\/github.com\/fant1kua\/goldsrc-rcon-console\/releases\/download\/v1.0.0\/goldsrc-rcon-console-linux\r\nchmod +x \/mnt\/server\/goldsrc-rcon-linux\r\n\r\n# Annoying, but this is the best we can do right now\r\ncat << 'EOF' > \/mnt\/server\/hlds_wine_rcon_vars.sh\r\n#!\/bin\/bash\r\n## File: HLDS Wine RCON Variable Replacement - hlds_wine_rcon_vars.sh\r\n## Description: Since Pterodactyl eggs config parser can't do variable substitution, we need to do this\r\n## Author: Kevin Moore <admin@sbotnas.io>\r\n## Created: 2024\/05\/01\r\n## Modified: 2024\/05\/01\r\n## License: MIT License\r\n\r\nSERVER_CFG=\"$HLDS_GAME\/server.cfg\"\r\n\r\nif [ -z \"$HLDS_GAME\" ]; then\r\n  echo \"Error: HLDS_GAME not set in panel\"\r\n  exit 1\r\nfi\r\n\r\nif [ ! -f \"$SERVER_CFG\" ]; then\r\n  echo \"Error: $HLDS_GAME\/server.cfg not found\"\r\n  exit 1\r\nfi\r\n\r\nreplace_variable() {\r\n  local var_name=\"$1\"\r\n  local new_value=\"$2\"\r\n  \r\n  # Check if the variable exists in the file\r\n  if grep -q \"^$var_name\" \"$SERVER_CFG\"; then\r\n    sed -i \"s\/^$var_name.*\/$var_name \\\"$new_value\\\"\/\" \"$SERVER_CFG\"\r\n  else\r\n    # Add the variable if it doesn't exist\r\n    echo -e \"$var_name \\\"$new_value\\\"\" >> \"$SERVER_CFG\"\r\n  fi\r\n}\r\n\r\n# Variables to replace\r\ndeclare -A vars_to_replace=(\r\n  [\"hostname\"]=\"$SERVER_NAME\"\r\n  [\"sv_password\"]=\"$SERVER_PASSWORD\"\r\n  [\"rcon_password\"]=\"$RCON_PASSWORD\"\r\n)\r\n\r\n# Loop through variables and replace current value\r\nfor var in \"${!vars_to_replace[@]}\"; do\r\n  replace_variable \"$var\" \"${vars_to_replace[$var]}\"\r\ndone\r\nEOF\r\n\r\nchmod +x \/mnt\/server\/hlds_wine_rcon_vars.sh\r\n\r\nmkdir -p \/mnt\/server\/steamcmd\r\ntar -xzvf steamcmd.tar.gz -C \/mnt\/server\/steamcmd\r\ncd \/mnt\/server\/steamcmd\r\n\r\n# SteamCMD fails otherwise for some reason, even running as root.\r\n# This is changed at the end of the install process anyways.\r\nchown -R root:root \/mnt\r\n\r\nexport HOME=\/mnt\/server\r\n.\/steamcmd.sh +force_install_dir \/mnt\/server +login ${STEAM_USER} ${STEAM_PASS} ${STEAM_AUTH} $( [[ \"${WINDOWS_INSTALL}\" == \"1\" ]] && printf %s '+@sSteamCmdForcePlatformType windows' ) +app_update ${SRCDS_APPID} +app_set_config 90 mod ${HLDS_GAME} +quit\r\n\r\nmkdir -p \/mnt\/server\/.steam\/sdk32\r\ncp -v linux32\/steamclient.so ..\/.steam\/sdk32\/steamclient.so\r\n\r\necho \"-----------------------------------------\"\r\necho \"Installation completed...\"\r\necho \"-----------------------------------------\"",
+            "container": "ghcr.io\/parkervcp\/installers:debian",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Game ID",
+            "description": "The ID corresponding to the game to download and run using HLDS.\r\n\r\nThe HLDS server ID is 90. This should not be changed.",
+            "env_variable": "SRCDS_APPID",
+            "default_value": "90",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|numeric|digits_between:1,6",
+            "field_type": "text"
+        },
+        {
+            "name": "Game Name",
+            "description": "The name corresponding to the game to download and run using HLDS. Can also specify folder name for third-party mods.\r\n\r\nAll the HLDS server names are here - https:\/\/developer.valvesoftware.com\/wiki\/Dedicated_Server_Name_Enumeration",
+            "env_variable": "HLDS_GAME",
+            "default_value": "valve",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|alpha_dash|between:1,100",
+            "field_type": "text"
+        },
+        {
+            "name": "Server Name",
+            "description": "The name your server will appear as on the in-game server list.",
+            "env_variable": "SERVER_NAME",
+            "default_value": "Pterodactyl HLDS Server",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Server Password",
+            "description": "Password protect your server",
+            "env_variable": "SERVER_PASSWORD",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:20",
+            "field_type": "text"
+        },
+        {
+            "name": "RCON Password",
+            "description": "RCON Password for remote access. Must be set, otherwise the web console connection will not work",
+            "env_variable": "RCON_PASSWORD",
+            "default_value": "changeme",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "Map",
+            "description": "The default map for the server",
+            "env_variable": "SRCDS_MAP",
+            "default_value": "crossfire",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|alpha_dash",
+            "field_type": "text"
+        },
+        {
+            "name": "Max Players",
+            "description": "The maximum number of players allowed on the server",
+            "env_variable": "MAX_PLAYERS",
+            "default_value": "8",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|between:1,32",
+            "field_type": "text"
+        },
+        {
+            "name": "VAC port",
+            "description": "Specifies the VAC port the server should use. Default is 26900.",
+            "env_variable": "VAC_PORT",
+            "default_value": "26900",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required|numeric|digits_between:1,5",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam Username",
+            "description": "Steam account used to download files (Defaults to anonymous)",
+            "env_variable": "STEAM_USER",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:32",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam Password",
+            "description": "Password for Steam account",
+            "env_variable": "STEAM_PASS",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:64",
+            "field_type": "text"
+        },
+        {
+            "name": "Steam Auth",
+            "description": "Steam Guard 2FA code for account",
+            "env_variable": "STEAM_AUTH",
+            "default_value": "",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "nullable|string|max:20",
+            "field_type": "text"
+        },
+        {
+            "name": "WINDOWS_INSTALL",
+            "description": "Do not change, currently required to install Windows binaries",
+            "env_variable": "WINDOWS_INSTALL",
+            "default_value": "1",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|integer|between:0,1",
+            "field_type": "text"
+        },
+        {
+            "name": "WINEDEBUG",
+            "description": "",
+            "env_variable": "WINEDEBUG",
+            "default_value": "-all",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required|string|max:20",
+            "field_type": "text"
+        }
+    ]
+}
